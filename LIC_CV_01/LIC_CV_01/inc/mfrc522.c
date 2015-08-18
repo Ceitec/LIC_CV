@@ -43,6 +43,8 @@ void mfrc522_init()
 	mfrc522_write(TxASKReg, 0x40);	
 	mfrc522_write(ModeReg, 0x3D);
 	
+	// O kousek další
+	mfrc522_write(RFCfgReg, (0x07<<4)); // Set Rx Gain to max
     // antenna on
 	byte = mfrc522_read(TxControlReg);
 	if(!(byte&0x03))
