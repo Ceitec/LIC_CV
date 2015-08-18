@@ -112,7 +112,7 @@ void process_timer_100Hz(void)
 		if (led_timer > 0) {
 			led_timer--;
 			if (led_timer == 0) {
-				PORTB ^= (1 << PB4);
+				PORTA ^= (1 << PA7);
 			}
 		}
 	}
@@ -141,6 +141,8 @@ void try_receive_data(void)
 					if (rc522_read_card_id(curr_id, &card_tipe))
 					{
 						TB_SendSerVzorku(TB_AddrReply, TB_AddrModule, TB_ERR_OK, curr_id[0], curr_id[1], curr_id[2], curr_id[3], curr_id[4]);
+						mfrc522_halt();
+						_delay_ms(100);
 					}
 					else
 					{
@@ -153,26 +155,30 @@ void try_receive_data(void)
 
 int main(void)
 {
-/*
-	DDRA |= (1 << DDA7) | (1 << DDA6) | (1 << DDA5) | (1 << DDA4) | (1 << DDA3) | (1 << DDA2) | (1 << DDA1);
-	DDRB |= (1 << DDB4) | (1 << DDB3);
-	DDRC |= (1 << DDC7) | (1 << DDC6) | (1 << DDC5) | (1 << DDC4);
-	DDRD |= (1 << DDD4) | (1 << DDD3) | (1 << DDD2);
-*/
-
+	
+	DDRA = (1 << PA7) | (1 << PA6) | (1 << PA5);
+	//DDRB |= (1 << DDB4) | (1 << DDB3);
+	//DDRC |= (1 << DDC7) | (1 << DDC6) | (1 << DDC5) | (1 << DDC4);
+	DDRD |= (1 << DDD2);
+	
+	//PORTA = 0x00;
 	
 	timer_init();
 	uart0_init();
 	TB_Callback_setBaud = &uart0_set_baud;
 	TB_Callback_TX = &send_data;
 	TB_Init((void*) 0x10); // addr in eeprom with settings
-	SPI_MasterInit();
+	
+	//SPI_MasterInit();
+	spi_init();
 	mfrc522_init();
+
 	
 	sei();
 	
     while(1)
     {
+		
 		process_timer_100Hz();
 		uart0_process();
 		try_receive_data();

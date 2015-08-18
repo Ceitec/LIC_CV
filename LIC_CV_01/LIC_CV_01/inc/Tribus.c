@@ -58,11 +58,11 @@ void TB_Init(void * setting_in_eeprom)
   addr_setting_in_eeprom = setting_in_eeprom;
   //                 DST,   SRC, size
   eeprom_read_block((void *) &TB_gbparam, setting_in_eeprom, sizeof(struct TB_GBPARAM));
-  if (TB_gbparam.eemagic != 66) {
+  if (TB_gbparam.eemagic != 65) {
     // not valid data in eeprom
     TB_gbparam.eemagic = 66;
     TB_gbparam.baud = 4;
-    TB_gbparam.address = 6;
+    TB_gbparam.address = 3;
     TB_gbparam.telegram_pause_time = 0;
     TB_gbparam.host_address = 2;
     // save default setting to eeprom

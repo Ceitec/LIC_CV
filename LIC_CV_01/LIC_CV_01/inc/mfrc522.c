@@ -33,6 +33,7 @@ initialize rc522
 void mfrc522_init()
 {
 	uint8_t byte;
+	
 	mfrc522_reset();
 	
 	mfrc522_write(TModeReg, 0x8D);
@@ -41,7 +42,7 @@ void mfrc522_init()
     mfrc522_write(TReloadReg_2, 0);	
 	mfrc522_write(TxASKReg, 0x40);	
 	mfrc522_write(ModeReg, 0x3D);
-	                       
+	
     // antenna on
 	byte = mfrc522_read(TxControlReg);
 	if(!(byte&0x03))
@@ -56,9 +57,10 @@ write data to rc522 register
 void mfrc522_write(uint8_t reg, uint8_t data)
 {
 	ENABLE_CHIP();
-	SPI_MasterTransmit((reg<<1)&0x7E);
-	SPI_MasterTransmit(data);
+	spi_transmit((reg<<1)&0x7E);
+	spi_transmit(data);
 	DISABLE_CHIP();
+	
 }
 
 /*
@@ -68,8 +70,8 @@ uint8_t mfrc522_read(uint8_t reg)
 {
 	uint8_t data;	
 	ENABLE_CHIP();
-	SPI_MasterTransmit(((reg<<1)&0x7E)|0x80);
-	data = SPI_MasterTransmit(0x00);
+	spi_transmit(((reg<<1)&0x7E)|0x80);
+	data = spi_transmit(0x00);
 	DISABLE_CHIP();
 	return data;
 }
@@ -80,6 +82,7 @@ soft reset rc522
 void mfrc522_reset()
 {
 	mfrc522_write(CommandReg,SoftReset_CMD);
+	
 }
 
 /*

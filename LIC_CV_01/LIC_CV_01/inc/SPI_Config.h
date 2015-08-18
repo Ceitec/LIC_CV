@@ -11,6 +11,7 @@
 
 #include <avr/io.h>
 
+#define SPI_CONFIG_AS_MASTER 	1
 
 // Nastaveni pinu pro Atmega32
 #define SPI_DDR		DDRB
