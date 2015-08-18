@@ -137,17 +137,46 @@ void try_receive_data(void)
 		{
 			switch (TB_Decode())
 			{
-				case TB_CMD_VZOREK:
-					if (rc522_read_card_id(curr_id, &card_tipe))
+				case TB_CMD_SERIOV:
+					switch(TB_bufIn[TB_BUF_TYPE])
 					{
-						TB_SendSerVzorku(TB_AddrReply, TB_AddrModule, TB_ERR_OK, curr_id[0], curr_id[1], curr_id[2], curr_id[3], curr_id[4]);
-						mfrc522_halt();
-						_delay_ms(100);
+						case 0:
+							if (rc522_read_card_id(curr_id, &card_tipe))
+							{
+								TB_SendSerVzorku(TB_AddrReply, TB_AddrModule, TB_ERR_OK, curr_id[0], curr_id[1], curr_id[2], curr_id[3], curr_id[4]);
+								mfrc522_halt();
+								_delay_ms(100);
+							}
+							else
+							{
+								TB_SendAck(TB_CV_ERR_SER, 0);
+							}
+							break;
+						case 1:
+							//login to block 4
+							mfrc522_auth(PICC_AUTHENT1A, TB_bufIn[TB_BUF_MOTOR], keyA_default, curr_id);
+							//write block 4
+							str[0] = TB_Value << 24;
+							str[1] = TB_Value << 16;
+							str[2] = TB_Value << 8;
+							status = mfrc522_write_block(TB_bufIn[TB_BUF_MOTOR], str);
+							TB_SendAck(TB_ERR_OK, status);
+							mfrc522_halt();
+							_delay_ms(100);
+							break;
+						case 2:
+							//read block 4
+							status = mfrc522_read_block(TB_bufIn[TB_BUF_MOTOR], str);
+							TB_SendAck(status, str);
+							mfrc522_halt();
+							_delay_ms(100);
+							break;
+						case 3:
+							break;
+						default:
+							break;
 					}
-					else
-					{
-						TB_SendAck(TB_CV_ERR_SER, 0);
-					}
+					break;
 			}
 		}
 	}

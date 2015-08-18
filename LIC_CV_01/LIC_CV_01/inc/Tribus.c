@@ -299,8 +299,8 @@ byte TB_Decode(void)
 		}*/
 		return TB_CMD_VENTIL;
 		break;
-	case TB_CMD_VZOREK:
-		return TB_CMD_VZOREK;
+	case TB_CMD_SERIOV:
+		return TB_CMD_SERIOV;
 		break;
     case TB_CMD_RFS:
 		return TB_CMD_RFS;

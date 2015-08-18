@@ -35,7 +35,7 @@
 #define TB_CMD_SIO     14
 #define TB_CMD_GIO	   15
 #define TB_CMD_VENTIL	16	
-#define TB_CMD_VZOREK	17
+#define TB_CMD_SERIOV	17
 
 #define TB_CMD_CALC		19	//Calc
 #define TB_CMD_COMP		20	//COMP
