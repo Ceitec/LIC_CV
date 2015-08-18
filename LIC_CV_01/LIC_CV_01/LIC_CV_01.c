@@ -169,6 +169,7 @@ void try_receive_data(void)
 							status = mfrc522_read_block(TB_bufIn[TB_BUF_MOTOR], str);
 							TB_SendAck(status, str);
 							mfrc522_halt();
+							
 							_delay_ms(100);
 							break;
 						case 3:

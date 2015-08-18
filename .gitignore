@@ -45,3 +45,8 @@ Temporary Items
 *.lss
 *.map
 *.srec
+*.mk
+*.d
+*.atsln
+*.atsuo
+
