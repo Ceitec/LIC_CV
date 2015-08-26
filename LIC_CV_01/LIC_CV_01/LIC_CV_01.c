@@ -135,6 +135,7 @@ void try_receive_data(void)
 		uart0_flags.data_received = FALSE;
 		if (TB_Read() == 0)
 		{
+			
 			switch (TB_Decode())
 			{
 				case TB_CMD_SERIOV:

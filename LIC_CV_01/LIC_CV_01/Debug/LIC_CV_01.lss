@@ -3667,6 +3667,7 @@ void try_receive_data(void)
     1452:	81 11       	cpse	r24, r1
     1454:	7f c0       	rjmp	.+254    	; 0x1554 <try_receive_data+0x140>
 		{
+			
 			switch (TB_Decode())
     1456:	0e 94 83 04 	call	0x906	; 0x906 <TB_Decode>
     145a:	81 31       	cpi	r24, 0x11	; 17
