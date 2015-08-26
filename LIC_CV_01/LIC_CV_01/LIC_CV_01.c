@@ -154,24 +154,43 @@ void try_receive_data(void)
 							}
 							break;
 						case 1:
-							//login to block 4
-							mfrc522_auth(PICC_AUTHENT1A, TB_bufIn[TB_BUF_MOTOR], keyA_default, curr_id);
-							//write block 4
-							str[0] = TB_Value << 24;
-							str[1] = TB_Value << 16;
-							str[2] = TB_Value << 8;
-							status = mfrc522_write_block(TB_bufIn[TB_BUF_MOTOR], str);
-							TB_SendAck(TB_ERR_OK, status);
-							mfrc522_halt();
-							_delay_ms(100);
+							if (rc522_read_card_id(curr_id, &card_tipe))
+							{
+								//login to block 4
+								status = mfrc522_auth(PICC_AUTHENT1A, TB_bufIn[TB_BUF_MOTOR], keyA_default, curr_id);
+								TB_SendAck(status, 0);
+								/*
+								//write block 4
+								str[0] = TB_Value << 24;
+								str[1] = TB_Value << 16;
+								str[2] = TB_Value << 8;
+								status = mfrc522_write_block(TB_bufIn[TB_BUF_MOTOR], str);
+								TB_SendAck(TB_ERR_OK, status);
+								*/
+								mfrc522_halt();
+								_delay_ms(100);
+							}
+							else
+							{
+								TB_SendAck(TB_CV_ERR_SER, 0);
+							}
 							break;
 						case 2:
-							//read block 4
-							status = mfrc522_read_block(TB_bufIn[TB_BUF_MOTOR], str);
-							TB_SendAck(status, str);
-							mfrc522_halt();
-							
-							_delay_ms(100);
+							if (rc522_read_card_id(curr_id, &card_tipe))
+							{
+								//read block 4
+								status = mfrc522_auth(PICC_AUTHENT1A, TB_bufIn[TB_BUF_MOTOR], keyA_default, curr_id);
+								TB_SendAck(status, 0);
+								/*status = mfrc522_read_block(TB_bufIn[TB_BUF_MOTOR], str);
+								TB_SendAck(status, str);
+								*/
+								mfrc522_halt();
+								_delay_ms(100);
+							}
+							else
+							{
+								TB_SendAck(TB_CV_ERR_SER, 0);
+							}
 							break;
 						case 3:
 							break;

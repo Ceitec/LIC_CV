@@ -48,5 +48,5 @@ Temporary Items
 *.mk
 *.d
 *.atsln
-*.atsuo
+.atsuo
 
