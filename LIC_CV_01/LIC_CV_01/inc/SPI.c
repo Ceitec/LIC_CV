@@ -15,7 +15,7 @@
 void spi_init()
 {
 	SPI_DDR = (1<<SPI_MOSI) | (1<<SPI_SCK) | (1<<SPI_SS);
-	SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0);//prescaler 16
+	SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0)|(1<<SPR1);//prescaler 128
 }
 
 

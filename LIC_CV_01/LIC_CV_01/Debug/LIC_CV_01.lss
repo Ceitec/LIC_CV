@@ -1220,8 +1220,8 @@ void spi_init()
 	SPI_DDR = (1<<SPI_MOSI) | (1<<SPI_SCK) | (1<<SPI_SS);
      65e:	80 eb       	ldi	r24, 0xB0	; 176
      660:	87 bb       	out	0x17, r24	; 23
-	SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0);//prescaler 16
-     662:	81 e5       	ldi	r24, 0x51	; 81
+	SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0)|(1<<SPR1);//prescaler 128
+     662:	83 e5       	ldi	r24, 0x53	; 83
      664:	8d b9       	out	0x0d, r24	; 13
      666:	08 95       	ret
 
@@ -1272,6 +1272,12 @@ uint8_t spi_transmit(uint8_t data)
      690:	08 95       	ret
 
 00000692 <TB_Send>:
+/******************************************************/
+// private functions
+/******************************************************/
+void TB_Send(void)
+{
+  if (TB_Callback_TX != NULL) TB_Callback_TX();
      692:	e0 91 68 00 	lds	r30, 0x0068
      696:	f0 91 69 00 	lds	r31, 0x0069
      69a:	30 97       	sbiw	r30, 0x00	; 0
@@ -1280,80 +1286,148 @@ uint8_t spi_transmit(uint8_t data)
      6a0:	08 95       	ret
 
 000006a2 <TB_calcSum>:
+}
+
+
+/******************************************************/
+void TB_calcSum(void)
+{
      6a2:	e9 e9       	ldi	r30, 0x99	; 153
      6a4:	f0 e0       	ldi	r31, 0x00	; 0
      6a6:	81 ea       	ldi	r24, 0xA1	; 161
      6a8:	90 e0       	ldi	r25, 0x00	; 0
+  byte i, sum;
+  sum = 0;
      6aa:	20 e0       	ldi	r18, 0x00	; 0
+  for(i=0; i<8; i++) {
+    sum += TB_bufOut[i];
      6ac:	31 91       	ld	r19, Z+
      6ae:	23 0f       	add	r18, r19
+/******************************************************/
+void TB_calcSum(void)
+{
+  byte i, sum;
+  sum = 0;
+  for(i=0; i<8; i++) {
      6b0:	e8 17       	cp	r30, r24
      6b2:	f9 07       	cpc	r31, r25
      6b4:	d9 f7       	brne	.-10     	; 0x6ac <TB_calcSum+0xa>
+    sum += TB_bufOut[i];
+  }
+  TB_bufOut[TB_BUF_SUM] = sum;
      6b6:	20 93 a1 00 	sts	0x00A1, r18
      6ba:	08 95       	ret
 
 000006bc <TB_Init>:
+/******************************************************/
+// public functions
+/******************************************************/
+// initialize
+void TB_Init(void * setting_in_eeprom)
+{
      6bc:	cf 93       	push	r28
      6be:	df 93       	push	r29
      6c0:	ec 01       	movw	r28, r24
+  addr_setting_in_eeprom = setting_in_eeprom;
      6c2:	90 93 b3 00 	sts	0x00B3, r25
      6c6:	80 93 b2 00 	sts	0x00B2, r24
+  //                 DST,   SRC, size
+  eeprom_read_block((void *) &TB_gbparam, setting_in_eeprom, sizeof(struct TB_GBPARAM));
      6ca:	45 e0       	ldi	r20, 0x05	; 5
      6cc:	50 e0       	ldi	r21, 0x00	; 0
      6ce:	bc 01       	movw	r22, r24
      6d0:	82 ea       	ldi	r24, 0xA2	; 162
      6d2:	90 e0       	ldi	r25, 0x00	; 0
      6d4:	0e 94 37 0a 	call	0x146e	; 0x146e <__eerd_block_m32>
+  if (TB_gbparam.eemagic != 66) {
      6d8:	80 91 a2 00 	lds	r24, 0x00A2
-     6dc:	81 34       	cpi	r24, 0x41	; 65
+     6dc:	82 34       	cpi	r24, 0x42	; 66
      6de:	a9 f0       	breq	.+42     	; 0x70a <TB_Init+0x4e>
+    // not valid data in eeprom
+    TB_gbparam.eemagic = 66;
      6e0:	82 e4       	ldi	r24, 0x42	; 66
      6e2:	80 93 a2 00 	sts	0x00A2, r24
+    TB_gbparam.baud = 4;
      6e6:	84 e0       	ldi	r24, 0x04	; 4
      6e8:	80 93 a3 00 	sts	0x00A3, r24
-     6ec:	83 e0       	ldi	r24, 0x03	; 3
+    TB_gbparam.address = 6;
+     6ec:	86 e0       	ldi	r24, 0x06	; 6
      6ee:	80 93 a4 00 	sts	0x00A4, r24
+    TB_gbparam.telegram_pause_time = 0;
      6f2:	10 92 a5 00 	sts	0x00A5, r1
+    TB_gbparam.host_address = 2;
      6f6:	82 e0       	ldi	r24, 0x02	; 2
      6f8:	80 93 a6 00 	sts	0x00A6, r24
+    // save default setting to eeprom
+    eeprom_write_block((void *) &TB_gbparam, setting_in_eeprom, sizeof(struct TB_GBPARAM));
      6fc:	45 e0       	ldi	r20, 0x05	; 5
      6fe:	50 e0       	ldi	r21, 0x00	; 0
      700:	be 01       	movw	r22, r28
      702:	82 ea       	ldi	r24, 0xA2	; 162
      704:	90 e0       	ldi	r25, 0x00	; 0
      706:	0e 94 58 0a 	call	0x14b0	; 0x14b0 <__eewr_block_m32>
+  }
+  // ted mame funkèni konfiguraci naètenou
+
+  // zvolíme správnou komunikaèní rychlost:
+  if (TB_Callback_setBaud != NULL) TB_Callback_setBaud(TB_gbparam.baud);
      70a:	e0 91 66 00 	lds	r30, 0x0066
      70e:	f0 91 67 00 	lds	r31, 0x0067
      712:	30 97       	sbiw	r30, 0x00	; 0
      714:	19 f0       	breq	.+6      	; 0x71c <TB_Init+0x60>
      716:	80 91 a3 00 	lds	r24, 0x00A3
      71a:	09 95       	icall
+
+  // poznaèíme si adresy
+  TB_AddrReply = TB_gbparam.host_address;
      71c:	80 91 a6 00 	lds	r24, 0x00A6
      720:	80 93 b4 00 	sts	0x00B4, r24
+  TB_AddrModule= TB_gbparam.address;
      724:	80 91 a4 00 	lds	r24, 0x00A4
      728:	80 93 a8 00 	sts	0x00A8, r24
+}
      72c:	df 91       	pop	r29
      72e:	cf 91       	pop	r28
      730:	08 95       	ret
 
 00000732 <TB_SendAck>:
+
+/******************************************************/
+// send response from module
+void TB_SendAck(byte status, long int value)
+{
+  TB_bufOut[0] = TB_AddrReply;
      732:	90 91 b4 00 	lds	r25, 0x00B4
      736:	90 93 99 00 	sts	0x0099, r25
+  TB_bufOut[1] = TB_AddrModule;
      73a:	90 91 a8 00 	lds	r25, 0x00A8
      73e:	90 93 9a 00 	sts	0x009A, r25
+  TB_bufOut[2] = status;
      742:	80 93 9b 00 	sts	0x009B, r24
+  TB_bufOut[3] = TB_bufIn[TB_BUF_COMMAND]; //command;
      746:	80 91 aa 00 	lds	r24, 0x00AA
      74a:	80 93 9c 00 	sts	0x009C, r24
+  TB_bufOut[4] = value >> 24;
      74e:	70 93 9d 00 	sts	0x009D, r23
+  TB_bufOut[5] = value >> 16;
      752:	60 93 9e 00 	sts	0x009E, r22
+  TB_bufOut[6] = value >> 8;
      756:	50 93 9f 00 	sts	0x009F, r21
+  TB_bufOut[7] = value >> 0;
      75a:	40 93 a0 00 	sts	0x00A0, r20
+  TB_calcSum();
      75e:	0e 94 51 03 	call	0x6a2	; 0x6a2 <TB_calcSum>
+  TB_Send();
      762:	0e 94 49 03 	call	0x692	; 0x692 <TB_Send>
      766:	08 95       	ret
 
 00000768 <TB_Read>:
+{
+  byte i;
+  byte sum;
+
+  // check address
+  if (TB_bufIn[TB_BUF_ADDRESS] != TB_AddrModule) return 2;
      768:	90 91 a9 00 	lds	r25, 0x00A9
      76c:	80 91 a8 00 	lds	r24, 0x00A8
      770:	98 13       	cpse	r25, r24
@@ -1363,27 +1437,62 @@ uint8_t spi_transmit(uint8_t data)
      778:	81 eb       	ldi	r24, 0xB1	; 177
      77a:	90 e0       	ldi	r25, 0x00	; 0
      77c:	20 e0       	ldi	r18, 0x00	; 0
+  
+  // check SUM byte
+  sum = 0;
+  for( i=0; i<8; i++) {
+    sum += TB_bufIn[i];
      77e:	31 91       	ld	r19, Z+
      780:	23 0f       	add	r18, r19
+  // check address
+  if (TB_bufIn[TB_BUF_ADDRESS] != TB_AddrModule) return 2;
+  
+  // check SUM byte
+  sum = 0;
+  for( i=0; i<8; i++) {
      782:	e8 17       	cp	r30, r24
      784:	f9 07       	cpc	r31, r25
      786:	d9 f7       	brne	.-10     	; 0x77e <TB_Read+0x16>
+    sum += TB_bufIn[i];
+  }
+  if (sum != TB_bufIn[TB_BUF_SUM]) {
      788:	80 91 b1 00 	lds	r24, 0x00B1
      78c:	28 17       	cp	r18, r24
      78e:	51 f0       	breq	.+20     	; 0x7a4 <TB_Read+0x3c>
+    TB_SendAck(1, 0); // wrong checksum
      790:	40 e0       	ldi	r20, 0x00	; 0
      792:	50 e0       	ldi	r21, 0x00	; 0
      794:	ba 01       	movw	r22, r20
      796:	81 e0       	ldi	r24, 0x01	; 1
      798:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+    return 3; // bad checksum
      79c:	83 e0       	ldi	r24, 0x03	; 3
      79e:	08 95       	ret
+{
+  byte i;
+  byte sum;
+
+  // check address
+  if (TB_bufIn[TB_BUF_ADDRESS] != TB_AddrModule) return 2;
      7a0:	82 e0       	ldi	r24, 0x02	; 2
      7a2:	08 95       	ret
+    TB_SendAck(1, 0); // wrong checksum
+    return 3; // bad checksum
+  }
+
+  // we have valid data in TB_bufIn
+  return 0;
      7a4:	80 e0       	ldi	r24, 0x00	; 0
+}
      7a6:	08 95       	ret
 
 000007a8 <TB_Decode>:
+
+/******************************************************/
+// decode incoming command
+// return = unhandled command number, 0=handled or unknown
+byte TB_Decode(void)
+{
      7a8:	0f 93       	push	r16
      7aa:	1f 93       	push	r17
      7ac:	cf 93       	push	r28
@@ -1391,7 +1500,10 @@ uint8_t spi_transmit(uint8_t data)
      7b0:	1f 92       	push	r1
      7b2:	cd b7       	in	r28, 0x3d	; 61
      7b4:	de b7       	in	r29, 0x3e	; 62
+  volatile byte b;
+  TB_Value = (((int32_t) TB_bufIn[4]) << 24) |
      7b6:	20 91 ad 00 	lds	r18, 0x00AD
+             (((int32_t) TB_bufIn[5]) << 16) |
      7ba:	60 91 ae 00 	lds	r22, 0x00AE
      7be:	86 2f       	mov	r24, r22
      7c0:	90 e0       	ldi	r25, 0x00	; 0
@@ -1400,17 +1512,44 @@ uint8_t spi_transmit(uint8_t data)
      7c6:	dc 01       	movw	r26, r24
      7c8:	99 27       	eor	r25, r25
      7ca:	88 27       	eor	r24, r24
+// decode incoming command
+// return = unhandled command number, 0=handled or unknown
+byte TB_Decode(void)
+{
+  volatile byte b;
+  TB_Value = (((int32_t) TB_bufIn[4]) << 24) |
      7cc:	b2 2b       	or	r27, r18
+             (((int32_t) TB_bufIn[5]) << 16) |
+             (((int32_t) TB_bufIn[6]) <<  8) |
+             (((int32_t) TB_bufIn[7])      ) ;
      7ce:	20 91 b0 00 	lds	r18, 0x00B0
+// return = unhandled command number, 0=handled or unknown
+byte TB_Decode(void)
+{
+  volatile byte b;
+  TB_Value = (((int32_t) TB_bufIn[4]) << 24) |
+             (((int32_t) TB_bufIn[5]) << 16) |
      7d2:	82 2b       	or	r24, r18
+             (((int32_t) TB_bufIn[6]) <<  8) |
      7d4:	20 91 af 00 	lds	r18, 0x00AF
      7d8:	bc 01       	movw	r22, r24
      7da:	cd 01       	movw	r24, r26
      7dc:	72 2b       	or	r23, r18
+// decode incoming command
+// return = unhandled command number, 0=handled or unknown
+byte TB_Decode(void)
+{
+  volatile byte b;
+  TB_Value = (((int32_t) TB_bufIn[4]) << 24) |
      7de:	60 93 95 00 	sts	0x0095, r22
      7e2:	70 93 96 00 	sts	0x0096, r23
      7e6:	80 93 97 00 	sts	0x0097, r24
      7ea:	90 93 98 00 	sts	0x0098, r25
+             (((int32_t) TB_bufIn[5]) << 16) |
+             (((int32_t) TB_bufIn[6]) <<  8) |
+             (((int32_t) TB_bufIn[7])      ) ;
+
+  switch (TB_bufIn[TB_BUF_COMMAND]) {
      7ee:	20 91 aa 00 	lds	r18, 0x00AA
      7f2:	2a 30       	cpi	r18, 0x0A	; 10
      7f4:	09 f4       	brne	.+2      	; 0x7f8 <TB_Decode+0x50>
@@ -1455,32 +1594,61 @@ uint8_t spi_transmit(uint8_t data)
      842:	09 f0       	breq	.+2      	; 0x846 <TB_Decode+0x9e>
      844:	d1 c2       	rjmp	.+1442   	; 0xde8 <__stack+0x589>
      846:	b8 c1       	rjmp	.+880    	; 0xbb8 <__stack+0x359>
+    case TB_CMD_DEBUG:
+      return TB_CMD_DEBUG;
      848:	8e ef       	ldi	r24, 0xFE	; 254
      84a:	db c2       	rjmp	.+1462   	; 0xe02 <__stack+0x5a3>
+      break;
+    case TB_CMD_ROR:
+      TB_SendAck(TB_ERR_OK, 0);
      84c:	40 e0       	ldi	r20, 0x00	; 0
      84e:	50 e0       	ldi	r21, 0x00	; 0
      850:	ba 01       	movw	r22, r20
      852:	84 e6       	ldi	r24, 0x64	; 100
      854:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      return TB_CMD_ROR;
      858:	81 e0       	ldi	r24, 0x01	; 1
      85a:	d3 c2       	rjmp	.+1446   	; 0xe02 <__stack+0x5a3>
+      break;
+    case TB_CMD_ROL:
+      TB_SendAck(TB_ERR_OK, 0);
      85c:	40 e0       	ldi	r20, 0x00	; 0
      85e:	50 e0       	ldi	r21, 0x00	; 0
      860:	ba 01       	movw	r22, r20
      862:	84 e6       	ldi	r24, 0x64	; 100
      864:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      return TB_CMD_ROL;
      868:	82 e0       	ldi	r24, 0x02	; 2
      86a:	cb c2       	rjmp	.+1430   	; 0xe02 <__stack+0x5a3>
+      break;
+    case TB_CMD_MVP:
+      return TB_CMD_MVP;
+      break;
+    case TB_CMD_SAP: // set axis parameter
+      if (TB_bufIn[TB_BUF_MOTOR] != 0) {
      86c:	20 91 ac 00 	lds	r18, 0x00AC
      870:	22 23       	and	r18, r18
      872:	41 f0       	breq	.+16     	; 0x884 <__stack+0x25>
+        TB_SendAck(TB_ERR_VALUE, 0); // invalid value
      874:	40 e0       	ldi	r20, 0x00	; 0
      876:	50 e0       	ldi	r21, 0x00	; 0
      878:	ba 01       	movw	r22, r20
      87a:	84 e0       	ldi	r24, 0x04	; 4
      87c:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      880:	80 e0       	ldi	r24, 0x00	; 0
      882:	bf c2       	rjmp	.+1406   	; 0xe02 <__stack+0x5a3>
+      break;
+    case TB_CMD_SAP: // set axis parameter
+      if (TB_bufIn[TB_BUF_MOTOR] != 0) {
+        TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+      } else {
+        switch (TB_bufIn[TB_BUF_TYPE]) {
      884:	20 91 ab 00 	lds	r18, 0x00AB
      888:	26 30       	cpi	r18, 0x06	; 6
      88a:	e9 f0       	breq	.+58     	; 0x8c6 <__stack+0x67>
@@ -1495,44 +1663,89 @@ uint8_t spi_transmit(uint8_t data)
      89c:	2c 38       	cpi	r18, 0x8C	; 140
      89e:	29 f1       	breq	.+74     	; 0x8ea <__stack+0x8b>
      8a0:	26 c0       	rjmp	.+76     	; 0x8ee <__stack+0x8f>
+          case TB_PARAM_SPEED:
+            TB_param.speed = TB_Value;
      8a2:	60 93 80 00 	sts	0x0080, r22
      8a6:	70 93 81 00 	sts	0x0081, r23
      8aa:	80 93 82 00 	sts	0x0082, r24
      8ae:	90 93 83 00 	sts	0x0083, r25
+            break;
      8b2:	1d c0       	rjmp	.+58     	; 0x8ee <__stack+0x8f>
+          case TB_PARAM_ACCELERATION:
+            TB_param.acceleration = TB_Value;
      8b4:	60 93 84 00 	sts	0x0084, r22
      8b8:	70 93 85 00 	sts	0x0085, r23
      8bc:	80 93 86 00 	sts	0x0086, r24
      8c0:	90 93 87 00 	sts	0x0087, r25
+            break;
      8c4:	14 c0       	rjmp	.+40     	; 0x8ee <__stack+0x8f>
+          case TB_PARAM_CURRENT_RUN:
+            TB_param.current = TB_Value;
      8c6:	60 93 88 00 	sts	0x0088, r22
      8ca:	70 93 89 00 	sts	0x0089, r23
      8ce:	80 93 8a 00 	sts	0x008A, r24
      8d2:	90 93 8b 00 	sts	0x008B, r25
+            break;
      8d6:	0b c0       	rjmp	.+22     	; 0x8ee <__stack+0x8f>
+          case TB_PARAM_CURRENT_HOLD:
+            TB_param.current_hold = TB_Value;
      8d8:	60 93 8c 00 	sts	0x008C, r22
      8dc:	70 93 8d 00 	sts	0x008D, r23
      8e0:	80 93 8e 00 	sts	0x008E, r24
      8e4:	90 93 8f 00 	sts	0x008F, r25
+            break;
      8e8:	02 c0       	rjmp	.+4      	; 0x8ee <__stack+0x8f>
+          case TB_PARAM_RESOLUTION:
+            TB_param.resolution = TB_Value;
      8ea:	60 93 90 00 	sts	0x0090, r22
+
+/******************************************************/
+// send OK response from module
+inline void TB_SendAckOK(void)
+{
+  TB_SendAck(100, 0);
      8ee:	40 e0       	ldi	r20, 0x00	; 0
      8f0:	50 e0       	ldi	r21, 0x00	; 0
      8f2:	ba 01       	movw	r22, r20
      8f4:	84 e6       	ldi	r24, 0x64	; 100
      8f6:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      8fa:	80 e0       	ldi	r24, 0x00	; 0
      8fc:	82 c2       	rjmp	.+1284   	; 0xe02 <__stack+0x5a3>
+        }
+        TB_SendAckOK();
+      }
+      break;
+    case TB_CMD_GAP: // get axis parameter
+      if (TB_bufIn[TB_BUF_MOTOR] != 0) {
      8fe:	80 91 ac 00 	lds	r24, 0x00AC
      902:	88 23       	and	r24, r24
      904:	41 f0       	breq	.+16     	; 0x916 <__stack+0xb7>
+        TB_SendAck(TB_ERR_VALUE, 0); // invalid value
      906:	40 e0       	ldi	r20, 0x00	; 0
      908:	50 e0       	ldi	r21, 0x00	; 0
      90a:	ba 01       	movw	r22, r20
      90c:	84 e0       	ldi	r24, 0x04	; 4
      90e:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      912:	80 e0       	ldi	r24, 0x00	; 0
      914:	76 c2       	rjmp	.+1260   	; 0xe02 <__stack+0x5a3>
+      break;
+    case TB_CMD_GAP: // get axis parameter
+      if (TB_bufIn[TB_BUF_MOTOR] != 0) {
+        TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+      } else {
+        switch (TB_bufIn[TB_BUF_TYPE]) {
      916:	80 91 ab 00 	lds	r24, 0x00AB
      91a:	86 30       	cpi	r24, 0x06	; 6
      91c:	61 f1       	breq	.+88     	; 0x976 <__stack+0x117>
@@ -1554,69 +1767,187 @@ uint8_t spi_transmit(uint8_t data)
      93c:	09 f0       	breq	.+2      	; 0x940 <__stack+0xe1>
      93e:	59 c0       	rjmp	.+178    	; 0x9f2 <__stack+0x193>
      940:	27 c0       	rjmp	.+78     	; 0x990 <__stack+0x131>
+          case TB_PARAM_ACTUAL_POSITION:
+            TB_SendAck(TB_ERR_OK, TB_param.actual_position);
      942:	40 91 7c 00 	lds	r20, 0x007C
      946:	50 91 7d 00 	lds	r21, 0x007D
      94a:	60 91 7e 00 	lds	r22, 0x007E
      94e:	70 91 7f 00 	lds	r23, 0x007F
      952:	84 e6       	ldi	r24, 0x64	; 100
      954:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      958:	80 e0       	ldi	r24, 0x00	; 0
+        TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+      } else {
+        switch (TB_bufIn[TB_BUF_TYPE]) {
+          case TB_PARAM_ACTUAL_POSITION:
+            TB_SendAck(TB_ERR_OK, TB_param.actual_position);
+            break;
      95a:	53 c2       	rjmp	.+1190   	; 0xe02 <__stack+0x5a3>
+          case TB_PARAM_ACCELERATION:
+            TB_SendAck(TB_ERR_OK, TB_param.acceleration);
      95c:	40 91 84 00 	lds	r20, 0x0084
      960:	50 91 85 00 	lds	r21, 0x0085
      964:	60 91 86 00 	lds	r22, 0x0086
      968:	70 91 87 00 	lds	r23, 0x0087
      96c:	84 e6       	ldi	r24, 0x64	; 100
      96e:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      972:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_PARAM_ACTUAL_POSITION:
+            TB_SendAck(TB_ERR_OK, TB_param.actual_position);
+            break;
+          case TB_PARAM_ACCELERATION:
+            TB_SendAck(TB_ERR_OK, TB_param.acceleration);
+            break;
      974:	46 c2       	rjmp	.+1164   	; 0xe02 <__stack+0x5a3>
+          case TB_PARAM_CURRENT_RUN:
+            TB_SendAck(TB_ERR_OK, TB_param.current);
      976:	40 91 88 00 	lds	r20, 0x0088
      97a:	50 91 89 00 	lds	r21, 0x0089
      97e:	60 91 8a 00 	lds	r22, 0x008A
      982:	70 91 8b 00 	lds	r23, 0x008B
      986:	84 e6       	ldi	r24, 0x64	; 100
      988:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      98c:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_PARAM_ACCELERATION:
+            TB_SendAck(TB_ERR_OK, TB_param.acceleration);
+            break;
+          case TB_PARAM_CURRENT_RUN:
+            TB_SendAck(TB_ERR_OK, TB_param.current);
+            break;
      98e:	39 c2       	rjmp	.+1138   	; 0xe02 <__stack+0x5a3>
+          case TB_PARAM_CURRENT_HOLD:
+            TB_SendAck(TB_ERR_OK, TB_param.current_hold);
      990:	40 91 8c 00 	lds	r20, 0x008C
      994:	50 91 8d 00 	lds	r21, 0x008D
      998:	60 91 8e 00 	lds	r22, 0x008E
      99c:	70 91 8f 00 	lds	r23, 0x008F
      9a0:	84 e6       	ldi	r24, 0x64	; 100
      9a2:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      9a6:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_PARAM_CURRENT_RUN:
+            TB_SendAck(TB_ERR_OK, TB_param.current);
+            break;
+          case TB_PARAM_CURRENT_HOLD:
+            TB_SendAck(TB_ERR_OK, TB_param.current_hold);
+            break;
      9a8:	2c c2       	rjmp	.+1112   	; 0xe02 <__stack+0x5a3>
+          case TB_PARAM_SPEED:
+            TB_SendAck(TB_ERR_OK, TB_param.speed);
      9aa:	40 91 80 00 	lds	r20, 0x0080
      9ae:	50 91 81 00 	lds	r21, 0x0081
      9b2:	60 91 82 00 	lds	r22, 0x0082
      9b6:	70 91 83 00 	lds	r23, 0x0083
      9ba:	84 e6       	ldi	r24, 0x64	; 100
      9bc:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      9c0:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_PARAM_CURRENT_HOLD:
+            TB_SendAck(TB_ERR_OK, TB_param.current_hold);
+            break;
+          case TB_PARAM_SPEED:
+            TB_SendAck(TB_ERR_OK, TB_param.speed);
+            break;
      9c2:	1f c2       	rjmp	.+1086   	; 0xe02 <__stack+0x5a3>
+          case TB_PARAM_RESOLUTION:
+            TB_SendAck(TB_ERR_OK, TB_param.resolution);
      9c4:	40 91 90 00 	lds	r20, 0x0090
      9c8:	50 e0       	ldi	r21, 0x00	; 0
      9ca:	60 e0       	ldi	r22, 0x00	; 0
      9cc:	70 e0       	ldi	r23, 0x00	; 0
      9ce:	84 e6       	ldi	r24, 0x64	; 100
      9d0:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      9d4:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_PARAM_SPEED:
+            TB_SendAck(TB_ERR_OK, TB_param.speed);
+            break;
+          case TB_PARAM_RESOLUTION:
+            TB_SendAck(TB_ERR_OK, TB_param.resolution);
+            break;
      9d6:	15 c2       	rjmp	.+1066   	; 0xe02 <__stack+0x5a3>
+          case TB_PARAM_RFS_DISTANCE:
+            TB_SendAck(TB_ERR_OK, TB_param.rfs_distance);
      9d8:	40 91 91 00 	lds	r20, 0x0091
      9dc:	50 91 92 00 	lds	r21, 0x0092
      9e0:	60 91 93 00 	lds	r22, 0x0093
      9e4:	70 91 94 00 	lds	r23, 0x0094
      9e8:	84 e6       	ldi	r24, 0x64	; 100
      9ea:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      9ee:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_PARAM_RESOLUTION:
+            TB_SendAck(TB_ERR_OK, TB_param.resolution);
+            break;
+          case TB_PARAM_RFS_DISTANCE:
+            TB_SendAck(TB_ERR_OK, TB_param.rfs_distance);
+            break;
      9f0:	08 c2       	rjmp	.+1040   	; 0xe02 <__stack+0x5a3>
+// doplnit nastavitelné parametry
+          default:
+            TB_SendAck(TB_ERR_VALUE, 0);
      9f2:	40 e0       	ldi	r20, 0x00	; 0
      9f4:	50 e0       	ldi	r21, 0x00	; 0
      9f6:	ba 01       	movw	r22, r20
      9f8:	84 e0       	ldi	r24, 0x04	; 4
      9fa:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      9fe:	80 e0       	ldi	r24, 0x00	; 0
+            TB_SendAck(TB_ERR_OK, TB_param.rfs_distance);
+            break;
+// doplnit nastavitelné parametry
+          default:
+            TB_SendAck(TB_ERR_VALUE, 0);
+            break;
      a00:	00 c2       	rjmp	.+1024   	; 0xe02 <__stack+0x5a3>
+        }
+      }
+      break;
+    case TB_CMD_SIO:
+		switch (TB_bufIn[TB_BUF_MOTOR])
      a02:	20 91 ac 00 	lds	r18, 0x00AC
      a06:	21 30       	cpi	r18, 0x01	; 1
      a08:	09 f4       	brne	.+2      	; 0xa0c <__stack+0x1ad>
@@ -1625,13 +1956,37 @@ uint8_t spi_transmit(uint8_t data)
      a0e:	22 30       	cpi	r18, 0x02	; 2
      a10:	49 f0       	breq	.+18     	; 0xa24 <__stack+0x1c5>
      a12:	54 c0       	rjmp	.+168    	; 0xabc <__stack+0x25d>
+		{
+	        case 0:
+				#ifdef TB_SIO_BANK_0_IMPLEMENTED
+					return TB_CMD_SIO;
+				#else
+					TB_SendAck(TB_ERR_TYPE, 0); // invalid value
      a14:	40 e0       	ldi	r20, 0x00	; 0
      a16:	50 e0       	ldi	r21, 0x00	; 0
      a18:	ba 01       	movw	r22, r20
      a1a:	83 e0       	ldi	r24, 0x03	; 3
      a1c:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+				}
+				break;
+			default:
+				TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+		}
+		return TB_CMD_SIO;
      a20:	8e e0       	ldi	r24, 0x0E	; 14
+				#ifdef TB_SIO_BANK_0_IMPLEMENTED
+					return TB_CMD_SIO;
+				#else
+					TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+				#endif
+				break;
      a22:	ef c1       	rjmp	.+990    	; 0xe02 <__stack+0x5a3>
+				#else
+					TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+				#endif
+				break;
+			case 2:
+				switch (TB_bufIn[TB_BUF_TYPE])
      a24:	20 91 ab 00 	lds	r18, 0x00AB
      a28:	21 30       	cpi	r18, 0x01	; 1
      a2a:	c1 f0       	breq	.+48     	; 0xa5c <__stack+0x1fd>
@@ -1639,6 +1994,9 @@ uint8_t spi_transmit(uint8_t data)
      a2e:	22 30       	cpi	r18, 0x02	; 2
      a30:	49 f1       	breq	.+82     	; 0xa84 <__stack+0x225>
      a32:	3c c0       	rjmp	.+120    	; 0xaac <__stack+0x24d>
+				{
+					case 0:
+						TB_out.b0 = (TB_Value != 0);
      a34:	21 e0       	ldi	r18, 0x01	; 1
      a36:	67 2b       	or	r22, r23
      a38:	68 2b       	or	r22, r24
@@ -1649,13 +2007,31 @@ uint8_t spi_transmit(uint8_t data)
      a44:	20 fb       	bst	r18, 0
      a46:	80 f9       	bld	r24, 0
      a48:	80 93 77 00 	sts	0x0077, r24
+
+/******************************************************/
+// send OK response from module
+inline void TB_SendAckOK(void)
+{
+  TB_SendAck(100, 0);
      a4c:	40 e0       	ldi	r20, 0x00	; 0
      a4e:	50 e0       	ldi	r21, 0x00	; 0
      a50:	ba 01       	movw	r22, r20
      a52:	84 e6       	ldi	r24, 0x64	; 100
      a54:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+				}
+				break;
+			default:
+				TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+		}
+		return TB_CMD_SIO;
      a58:	8e e0       	ldi	r24, 0x0E	; 14
      a5a:	d3 c1       	rjmp	.+934    	; 0xe02 <__stack+0x5a3>
+					case 0:
+						TB_out.b0 = (TB_Value != 0);
+						TB_SendAckOK();
+						break;
+					case 1:
+						TB_out.b1 = (TB_Value != 0);
      a5c:	21 e0       	ldi	r18, 0x01	; 1
      a5e:	67 2b       	or	r22, r23
      a60:	68 2b       	or	r22, r24
@@ -1666,13 +2042,31 @@ uint8_t spi_transmit(uint8_t data)
      a6c:	20 fb       	bst	r18, 0
      a6e:	81 f9       	bld	r24, 1
      a70:	80 93 77 00 	sts	0x0077, r24
+
+/******************************************************/
+// send OK response from module
+inline void TB_SendAckOK(void)
+{
+  TB_SendAck(100, 0);
      a74:	40 e0       	ldi	r20, 0x00	; 0
      a76:	50 e0       	ldi	r21, 0x00	; 0
      a78:	ba 01       	movw	r22, r20
      a7a:	84 e6       	ldi	r24, 0x64	; 100
      a7c:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+				}
+				break;
+			default:
+				TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+		}
+		return TB_CMD_SIO;
      a80:	8e e0       	ldi	r24, 0x0E	; 14
      a82:	bf c1       	rjmp	.+894    	; 0xe02 <__stack+0x5a3>
+					case 1:
+						TB_out.b1 = (TB_Value != 0);
+						TB_SendAckOK();
+						break;
+					case 2:
+						TB_out.b2 = (TB_Value != 0);
      a84:	21 e0       	ldi	r18, 0x01	; 1
      a86:	67 2b       	or	r22, r23
      a88:	68 2b       	or	r22, r24
@@ -1683,27 +2077,66 @@ uint8_t spi_transmit(uint8_t data)
      a94:	20 fb       	bst	r18, 0
      a96:	82 f9       	bld	r24, 2
      a98:	80 93 77 00 	sts	0x0077, r24
+
+/******************************************************/
+// send OK response from module
+inline void TB_SendAckOK(void)
+{
+  TB_SendAck(100, 0);
      a9c:	40 e0       	ldi	r20, 0x00	; 0
      a9e:	50 e0       	ldi	r21, 0x00	; 0
      aa0:	ba 01       	movw	r22, r20
      aa2:	84 e6       	ldi	r24, 0x64	; 100
      aa4:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+				}
+				break;
+			default:
+				TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+		}
+		return TB_CMD_SIO;
      aa8:	8e e0       	ldi	r24, 0x0E	; 14
      aaa:	ab c1       	rjmp	.+854    	; 0xe02 <__stack+0x5a3>
+					case 2:
+						TB_out.b2 = (TB_Value != 0);
+						TB_SendAckOK();
+						break;
+					default:
+						TB_SendAck(TB_ERR_TYPE, 0); // invalid value
      aac:	40 e0       	ldi	r20, 0x00	; 0
      aae:	50 e0       	ldi	r21, 0x00	; 0
      ab0:	ba 01       	movw	r22, r20
      ab2:	83 e0       	ldi	r24, 0x03	; 3
      ab4:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+				}
+				break;
+			default:
+				TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+		}
+		return TB_CMD_SIO;
      ab8:	8e e0       	ldi	r24, 0x0E	; 14
+						TB_out.b2 = (TB_Value != 0);
+						TB_SendAckOK();
+						break;
+					default:
+						TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+					break;
      aba:	a3 c1       	rjmp	.+838    	; 0xe02 <__stack+0x5a3>
+				}
+				break;
+			default:
+				TB_SendAck(TB_ERR_TYPE, 0); // invalid value
      abc:	40 e0       	ldi	r20, 0x00	; 0
      abe:	50 e0       	ldi	r21, 0x00	; 0
      ac0:	ba 01       	movw	r22, r20
      ac2:	83 e0       	ldi	r24, 0x03	; 3
      ac4:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+		}
+		return TB_CMD_SIO;
      ac8:	8e e0       	ldi	r24, 0x0E	; 14
      aca:	9b c1       	rjmp	.+822    	; 0xe02 <__stack+0x5a3>
+		break;
+    case TB_CMD_GIO:
+		switch (TB_bufIn[TB_BUF_MOTOR])
      acc:	80 91 ac 00 	lds	r24, 0x00AC
      ad0:	81 30       	cpi	r24, 0x01	; 1
      ad2:	29 f0       	breq	.+10     	; 0xade <__stack+0x27f>
@@ -1712,8 +2145,20 @@ uint8_t spi_transmit(uint8_t data)
      ad8:	09 f4       	brne	.+2      	; 0xadc <__stack+0x27d>
      ada:	46 c0       	rjmp	.+140    	; 0xb68 <__stack+0x309>
      adc:	91 c1       	rjmp	.+802    	; 0xe00 <__stack+0x5a1>
+						break;
+				}
+				break;
+			case 1: // analog inputs (2)
+				//TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+				return TB_CMD_GIO;
      ade:	8f e0       	ldi	r24, 0x0F	; 15
      ae0:	90 c1       	rjmp	.+800    	; 0xe02 <__stack+0x5a3>
+		break;
+    case TB_CMD_GIO:
+		switch (TB_bufIn[TB_BUF_MOTOR])
+		{
+			case 0: // inputs (4)
+				switch (TB_bufIn[TB_BUF_TYPE])
      ae2:	80 91 ab 00 	lds	r24, 0x00AB
      ae6:	81 30       	cpi	r24, 0x01	; 1
      ae8:	89 f0       	breq	.+34     	; 0xb0c <__stack+0x2ad>
@@ -1723,6 +2168,9 @@ uint8_t spi_transmit(uint8_t data)
      af0:	83 30       	cpi	r24, 0x03	; 3
      af2:	29 f1       	breq	.+74     	; 0xb3e <__stack+0x2df>
      af4:	31 c0       	rjmp	.+98     	; 0xb58 <__stack+0x2f9>
+				{
+					case 0:
+						TB_SendAck(TB_ERR_OK, TB_inp.b0);
      af6:	40 91 a7 00 	lds	r20, 0x00A7
      afa:	41 70       	andi	r20, 0x01	; 1
      afc:	50 e0       	ldi	r21, 0x00	; 0
@@ -1730,8 +2178,22 @@ uint8_t spi_transmit(uint8_t data)
      b00:	70 e0       	ldi	r23, 0x00	; 0
      b02:	84 e6       	ldi	r24, 0x64	; 100
      b04:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      b08:	80 e0       	ldi	r24, 0x00	; 0
+			case 0: // inputs (4)
+				switch (TB_bufIn[TB_BUF_TYPE])
+				{
+					case 0:
+						TB_SendAck(TB_ERR_OK, TB_inp.b0);
+						break;
      b0a:	7b c1       	rjmp	.+758    	; 0xe02 <__stack+0x5a3>
+		            case 1:
+						TB_SendAck(TB_ERR_OK, TB_inp.b1);
      b0c:	40 91 a7 00 	lds	r20, 0x00A7
      b10:	46 95       	lsr	r20
      b12:	41 70       	andi	r20, 0x01	; 1
@@ -1740,8 +2202,22 @@ uint8_t spi_transmit(uint8_t data)
      b18:	70 e0       	ldi	r23, 0x00	; 0
      b1a:	84 e6       	ldi	r24, 0x64	; 100
      b1c:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      b20:	80 e0       	ldi	r24, 0x00	; 0
+					case 0:
+						TB_SendAck(TB_ERR_OK, TB_inp.b0);
+						break;
+		            case 1:
+						TB_SendAck(TB_ERR_OK, TB_inp.b1);
+						break;
      b22:	6f c1       	rjmp	.+734    	; 0xe02 <__stack+0x5a3>
+					case 2:
+						TB_SendAck(TB_ERR_OK, TB_inp.b2);
      b24:	40 91 a7 00 	lds	r20, 0x00A7
      b28:	42 fb       	bst	r20, 2
      b2a:	44 27       	eor	r20, r20
@@ -1751,8 +2227,22 @@ uint8_t spi_transmit(uint8_t data)
      b32:	70 e0       	ldi	r23, 0x00	; 0
      b34:	84 e6       	ldi	r24, 0x64	; 100
      b36:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      b3a:	80 e0       	ldi	r24, 0x00	; 0
+		            case 1:
+						TB_SendAck(TB_ERR_OK, TB_inp.b1);
+						break;
+					case 2:
+						TB_SendAck(TB_ERR_OK, TB_inp.b2);
+						break;
      b3c:	62 c1       	rjmp	.+708    	; 0xe02 <__stack+0x5a3>
+					case 3:
+						TB_SendAck(TB_ERR_OK, TB_inp.b3);
      b3e:	40 91 a7 00 	lds	r20, 0x00A7
      b42:	43 fb       	bst	r20, 3
      b44:	44 27       	eor	r20, r20
@@ -1762,21 +2252,56 @@ uint8_t spi_transmit(uint8_t data)
      b4c:	70 e0       	ldi	r23, 0x00	; 0
      b4e:	84 e6       	ldi	r24, 0x64	; 100
      b50:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      b54:	80 e0       	ldi	r24, 0x00	; 0
+					case 2:
+						TB_SendAck(TB_ERR_OK, TB_inp.b2);
+						break;
+					case 3:
+						TB_SendAck(TB_ERR_OK, TB_inp.b3);
+						break;
      b56:	55 c1       	rjmp	.+682    	; 0xe02 <__stack+0x5a3>
+					default:
+						TB_SendAck(TB_ERR_VALUE, 0); // invalid value
      b58:	40 e0       	ldi	r20, 0x00	; 0
      b5a:	50 e0       	ldi	r21, 0x00	; 0
      b5c:	ba 01       	movw	r22, r20
      b5e:	84 e0       	ldi	r24, 0x04	; 4
      b60:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      b64:	80 e0       	ldi	r24, 0x00	; 0
+					case 3:
+						TB_SendAck(TB_ERR_OK, TB_inp.b3);
+						break;
+					default:
+						TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+						break;
      b66:	4d c1       	rjmp	.+666    	; 0xe02 <__stack+0x5a3>
+			case 1: // analog inputs (2)
+				//TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+				return TB_CMD_GIO;
+				break;
+			case 2: // outputs (2);
+				switch (TB_bufIn[TB_BUF_TYPE])
      b68:	80 91 ab 00 	lds	r24, 0x00AB
      b6c:	88 23       	and	r24, r24
      b6e:	19 f0       	breq	.+6      	; 0xb76 <__stack+0x317>
      b70:	81 30       	cpi	r24, 0x01	; 1
      b72:	61 f0       	breq	.+24     	; 0xb8c <__stack+0x32d>
      b74:	17 c0       	rjmp	.+46     	; 0xba4 <__stack+0x345>
+				{
+					case 0:
+						TB_SendAck(TB_ERR_OK, TB_out.b0);
      b76:	40 91 77 00 	lds	r20, 0x0077
      b7a:	41 70       	andi	r20, 0x01	; 1
      b7c:	50 e0       	ldi	r21, 0x00	; 0
@@ -1784,8 +2309,22 @@ uint8_t spi_transmit(uint8_t data)
      b80:	70 e0       	ldi	r23, 0x00	; 0
      b82:	84 e6       	ldi	r24, 0x64	; 100
      b84:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      b88:	80 e0       	ldi	r24, 0x00	; 0
+			case 2: // outputs (2);
+				switch (TB_bufIn[TB_BUF_TYPE])
+				{
+					case 0:
+						TB_SendAck(TB_ERR_OK, TB_out.b0);
+						break;
      b8a:	3b c1       	rjmp	.+630    	; 0xe02 <__stack+0x5a3>
+					case 1:
+						TB_SendAck(TB_ERR_OK, TB_out.b1);
      b8c:	40 91 77 00 	lds	r20, 0x0077
      b90:	46 95       	lsr	r20
      b92:	41 70       	andi	r20, 0x01	; 1
@@ -1794,31 +2333,86 @@ uint8_t spi_transmit(uint8_t data)
      b98:	70 e0       	ldi	r23, 0x00	; 0
      b9a:	84 e6       	ldi	r24, 0x64	; 100
      b9c:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      ba0:	80 e0       	ldi	r24, 0x00	; 0
+					case 0:
+						TB_SendAck(TB_ERR_OK, TB_out.b0);
+						break;
+					case 1:
+						TB_SendAck(TB_ERR_OK, TB_out.b1);
+						break;
      ba2:	2f c1       	rjmp	.+606    	; 0xe02 <__stack+0x5a3>
+					default:
+						TB_SendAck(TB_ERR_VALUE, 0); // invalid value
      ba4:	40 e0       	ldi	r20, 0x00	; 0
      ba6:	50 e0       	ldi	r21, 0x00	; 0
      ba8:	ba 01       	movw	r22, r20
      baa:	84 e0       	ldi	r24, 0x04	; 4
      bac:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      bb0:	80 e0       	ldi	r24, 0x00	; 0
+					case 1:
+						TB_SendAck(TB_ERR_OK, TB_out.b1);
+						break;
+					default:
+						TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+						break;
      bb2:	27 c1       	rjmp	.+590    	; 0xe02 <__stack+0x5a3>
+				break;
+			default:
+				TB_SendAck(TB_ERR_VALUE, TB_bufIn[TB_BUF_MOTOR]); // invalid value
+				break;
+		}*/
+		return TB_CMD_VENTIL;
      bb4:	80 e1       	ldi	r24, 0x10	; 16
      bb6:	25 c1       	rjmp	.+586    	; 0xe02 <__stack+0x5a3>
+		break;
+	case TB_CMD_SERIOV:
+		return TB_CMD_SERIOV;
      bb8:	81 e1       	ldi	r24, 0x11	; 17
      bba:	23 c1       	rjmp	.+582    	; 0xe02 <__stack+0x5a3>
+		break;
+    case TB_CMD_RFS:
+		return TB_CMD_RFS;
      bbc:	8d e0       	ldi	r24, 0x0D	; 13
      bbe:	21 c1       	rjmp	.+578    	; 0xe02 <__stack+0x5a3>
+		break;
+    case TB_CMD_SGP:
+		if (TB_bufIn[TB_BUF_MOTOR] != 0)
      bc0:	20 91 ac 00 	lds	r18, 0x00AC
      bc4:	22 23       	and	r18, r18
      bc6:	41 f0       	breq	.+16     	; 0xbd8 <__stack+0x379>
+		{
+			TB_SendAck(TB_ERR_VALUE, 0); // invalid value
      bc8:	40 e0       	ldi	r20, 0x00	; 0
      bca:	50 e0       	ldi	r21, 0x00	; 0
      bcc:	ba 01       	movw	r22, r20
      bce:	84 e0       	ldi	r24, 0x04	; 4
      bd0:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      bd4:	80 e0       	ldi	r24, 0x00	; 0
      bd6:	15 c1       	rjmp	.+554    	; 0xe02 <__stack+0x5a3>
+		{
+			TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+		}
+		else
+		{
+			switch (TB_bufIn[TB_BUF_TYPE])
      bd8:	20 91 ab 00 	lds	r18, 0x00AB
      bdc:	21 34       	cpi	r18, 0x41	; 65
      bde:	51 f1       	breq	.+84     	; 0xc34 <__stack+0x3d5>
@@ -1833,6 +2427,9 @@ uint8_t spi_transmit(uint8_t data)
      bf0:	09 f4       	brne	.+2      	; 0xbf4 <__stack+0x395>
      bf2:	60 c0       	rjmp	.+192    	; 0xcb4 <__stack+0x455>
      bf4:	7f c0       	rjmp	.+254    	; 0xcf4 <__stack+0x495>
+			{
+				case TB_GBPARAM_EEMAGIC:
+					if (TB_Value != TB_gbparam.eemagic)
      bf6:	00 91 a2 00 	lds	r16, 0x00A2
      bfa:	10 e0       	ldi	r17, 0x00	; 0
      bfc:	20 e0       	ldi	r18, 0x00	; 0
@@ -1842,8 +2439,12 @@ uint8_t spi_transmit(uint8_t data)
      c04:	82 07       	cpc	r24, r18
      c06:	93 07       	cpc	r25, r19
      c08:	69 f0       	breq	.+26     	; 0xc24 <__stack+0x3c5>
+					{
+						TB_gbparam.eemagic = TB_Value;
      c0a:	60 93 a2 00 	sts	0x00A2, r22
+						b = (void *) &(TB_gbparam.eemagic) - (void *) &(TB_gbparam);
      c0e:	19 82       	std	Y+1, r1	; 0x01
+						eeprom_update_byte(b+addr_setting_in_eeprom, TB_gbparam.eemagic);
      c10:	49 81       	ldd	r20, Y+1	; 0x01
      c12:	20 91 b2 00 	lds	r18, 0x00B2
      c16:	30 91 b3 00 	lds	r19, 0x00B3
@@ -1851,13 +2452,29 @@ uint8_t spi_transmit(uint8_t data)
      c1c:	84 0f       	add	r24, r20
      c1e:	91 1d       	adc	r25, r1
      c20:	0e 94 47 0a 	call	0x148e	; 0x148e <__eeupd_byte_m32>
+					}
+					TB_SendAck(TB_ERR_OK, 0);
      c24:	40 e0       	ldi	r20, 0x00	; 0
      c26:	50 e0       	ldi	r21, 0x00	; 0
      c28:	ba 01       	movw	r22, r20
      c2a:	84 e6       	ldi	r24, 0x64	; 100
      c2c:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      c30:	80 e0       	ldi	r24, 0x00	; 0
+						TB_gbparam.eemagic = TB_Value;
+						b = (void *) &(TB_gbparam.eemagic) - (void *) &(TB_gbparam);
+						eeprom_update_byte(b+addr_setting_in_eeprom, TB_gbparam.eemagic);
+					}
+					TB_SendAck(TB_ERR_OK, 0);
+					break;
      c32:	e7 c0       	rjmp	.+462    	; 0xe02 <__stack+0x5a3>
+				case TB_GBPARAM_BAUD:
+					if (TB_Value != TB_gbparam.baud)
      c34:	00 91 a3 00 	lds	r16, 0x00A3
      c38:	10 e0       	ldi	r17, 0x00	; 0
      c3a:	20 e0       	ldi	r18, 0x00	; 0
@@ -1867,9 +2484,13 @@ uint8_t spi_transmit(uint8_t data)
      c42:	82 07       	cpc	r24, r18
      c44:	93 07       	cpc	r25, r19
      c46:	71 f0       	breq	.+28     	; 0xc64 <__stack+0x405>
+					{
+						TB_gbparam.baud = TB_Value;
      c48:	60 93 a3 00 	sts	0x00A3, r22
+						b = (void *) &(TB_gbparam.baud) - (void *) &(TB_gbparam);
      c4c:	21 e0       	ldi	r18, 0x01	; 1
      c4e:	29 83       	std	Y+1, r18	; 0x01
+						eeprom_update_byte(b+addr_setting_in_eeprom, TB_gbparam.baud);
      c50:	49 81       	ldd	r20, Y+1	; 0x01
      c52:	20 91 b2 00 	lds	r18, 0x00B2
      c56:	30 91 b3 00 	lds	r19, 0x00B3
@@ -1877,13 +2498,29 @@ uint8_t spi_transmit(uint8_t data)
      c5c:	84 0f       	add	r24, r20
      c5e:	91 1d       	adc	r25, r1
      c60:	0e 94 47 0a 	call	0x148e	; 0x148e <__eeupd_byte_m32>
+					}
+					TB_SendAck(TB_ERR_OK, 0);
      c64:	40 e0       	ldi	r20, 0x00	; 0
      c66:	50 e0       	ldi	r21, 0x00	; 0
      c68:	ba 01       	movw	r22, r20
      c6a:	84 e6       	ldi	r24, 0x64	; 100
      c6c:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      c70:	80 e0       	ldi	r24, 0x00	; 0
+						TB_gbparam.baud = TB_Value;
+						b = (void *) &(TB_gbparam.baud) - (void *) &(TB_gbparam);
+						eeprom_update_byte(b+addr_setting_in_eeprom, TB_gbparam.baud);
+					}
+					TB_SendAck(TB_ERR_OK, 0);
+					break;
      c72:	c7 c0       	rjmp	.+398    	; 0xe02 <__stack+0x5a3>
+				case TB_GBPARAM_ADDRESS:
+					if (TB_Value != TB_gbparam.address)
      c74:	00 91 a4 00 	lds	r16, 0x00A4
      c78:	10 e0       	ldi	r17, 0x00	; 0
      c7a:	20 e0       	ldi	r18, 0x00	; 0
@@ -1893,9 +2530,13 @@ uint8_t spi_transmit(uint8_t data)
      c82:	82 07       	cpc	r24, r18
      c84:	93 07       	cpc	r25, r19
      c86:	71 f0       	breq	.+28     	; 0xca4 <__stack+0x445>
+					{
+						TB_gbparam.address = TB_Value;
      c88:	60 93 a4 00 	sts	0x00A4, r22
+				        b = (void *) &(TB_gbparam.address) - (void *) &(TB_gbparam);
      c8c:	22 e0       	ldi	r18, 0x02	; 2
      c8e:	29 83       	std	Y+1, r18	; 0x01
+						eeprom_update_byte(b+addr_setting_in_eeprom, TB_gbparam.address);
      c90:	49 81       	ldd	r20, Y+1	; 0x01
      c92:	20 91 b2 00 	lds	r18, 0x00B2
      c96:	30 91 b3 00 	lds	r19, 0x00B3
@@ -1903,13 +2544,29 @@ uint8_t spi_transmit(uint8_t data)
      c9c:	84 0f       	add	r24, r20
      c9e:	91 1d       	adc	r25, r1
      ca0:	0e 94 47 0a 	call	0x148e	; 0x148e <__eeupd_byte_m32>
+					}
+					TB_SendAck(TB_ERR_OK, 0);
      ca4:	40 e0       	ldi	r20, 0x00	; 0
      ca6:	50 e0       	ldi	r21, 0x00	; 0
      ca8:	ba 01       	movw	r22, r20
      caa:	84 e6       	ldi	r24, 0x64	; 100
      cac:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      cb0:	80 e0       	ldi	r24, 0x00	; 0
+						TB_gbparam.address = TB_Value;
+				        b = (void *) &(TB_gbparam.address) - (void *) &(TB_gbparam);
+						eeprom_update_byte(b+addr_setting_in_eeprom, TB_gbparam.address);
+					}
+					TB_SendAck(TB_ERR_OK, 0);
+					break;
      cb2:	a7 c0       	rjmp	.+334    	; 0xe02 <__stack+0x5a3>
+				case TB_GBPARAM_HOST_ADDR:
+					if (TB_Value != TB_gbparam.host_address)
      cb4:	00 91 a6 00 	lds	r16, 0x00A6
      cb8:	10 e0       	ldi	r17, 0x00	; 0
      cba:	20 e0       	ldi	r18, 0x00	; 0
@@ -1919,9 +2576,13 @@ uint8_t spi_transmit(uint8_t data)
      cc2:	82 07       	cpc	r24, r18
      cc4:	93 07       	cpc	r25, r19
      cc6:	71 f0       	breq	.+28     	; 0xce4 <__stack+0x485>
+					{
+						TB_gbparam.host_address = TB_Value;
      cc8:	60 93 a6 00 	sts	0x00A6, r22
+						b = (void *) &(TB_gbparam.host_address) - (void *) &(TB_gbparam);
      ccc:	24 e0       	ldi	r18, 0x04	; 4
      cce:	29 83       	std	Y+1, r18	; 0x01
+						eeprom_update_byte(b+addr_setting_in_eeprom, TB_gbparam.host_address);
      cd0:	49 81       	ldd	r20, Y+1	; 0x01
      cd2:	20 91 b2 00 	lds	r18, 0x00B2
      cd6:	30 91 b3 00 	lds	r19, 0x00B3
@@ -1929,30 +2590,76 @@ uint8_t spi_transmit(uint8_t data)
      cdc:	84 0f       	add	r24, r20
      cde:	91 1d       	adc	r25, r1
      ce0:	0e 94 47 0a 	call	0x148e	; 0x148e <__eeupd_byte_m32>
+					}
+					TB_SendAck(TB_ERR_OK, 0);
      ce4:	40 e0       	ldi	r20, 0x00	; 0
      ce6:	50 e0       	ldi	r21, 0x00	; 0
      ce8:	ba 01       	movw	r22, r20
      cea:	84 e6       	ldi	r24, 0x64	; 100
      cec:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      cf0:	80 e0       	ldi	r24, 0x00	; 0
+						TB_gbparam.host_address = TB_Value;
+						b = (void *) &(TB_gbparam.host_address) - (void *) &(TB_gbparam);
+						eeprom_update_byte(b+addr_setting_in_eeprom, TB_gbparam.host_address);
+					}
+					TB_SendAck(TB_ERR_OK, 0);
+					break;
      cf2:	87 c0       	rjmp	.+270    	; 0xe02 <__stack+0x5a3>
+				default:
+					TB_SendAck(TB_ERR_VALUE, 0); // invalid value
      cf4:	40 e0       	ldi	r20, 0x00	; 0
      cf6:	50 e0       	ldi	r21, 0x00	; 0
      cf8:	ba 01       	movw	r22, r20
      cfa:	84 e0       	ldi	r24, 0x04	; 4
      cfc:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      d00:	80 e0       	ldi	r24, 0x00	; 0
+					}
+					TB_SendAck(TB_ERR_OK, 0);
+					break;
+				default:
+					TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+					break;
      d02:	7f c0       	rjmp	.+254    	; 0xe02 <__stack+0x5a3>
+			}
+      }
+      break;
+    case TB_CMD_GGP:
+      if (TB_bufIn[TB_BUF_MOTOR] != 0) {
      d04:	80 91 ac 00 	lds	r24, 0x00AC
      d08:	88 23       	and	r24, r24
      d0a:	41 f0       	breq	.+16     	; 0xd1c <__stack+0x4bd>
+        TB_SendAck(TB_ERR_VALUE, 0); // invalid value
      d0c:	40 e0       	ldi	r20, 0x00	; 0
      d0e:	50 e0       	ldi	r21, 0x00	; 0
      d10:	ba 01       	movw	r22, r20
      d12:	84 e0       	ldi	r24, 0x04	; 4
      d14:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      d18:	80 e0       	ldi	r24, 0x00	; 0
      d1a:	73 c0       	rjmp	.+230    	; 0xe02 <__stack+0x5a3>
+      break;
+    case TB_CMD_GGP:
+      if (TB_bufIn[TB_BUF_MOTOR] != 0) {
+        TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+      } else {
+        switch (TB_bufIn[TB_BUF_TYPE]) {
      d1c:	80 91 ab 00 	lds	r24, 0x00AB
      d20:	81 34       	cpi	r24, 0x41	; 65
      d22:	49 f0       	breq	.+18     	; 0xd36 <__stack+0x4d7>
@@ -1965,85 +2672,215 @@ uint8_t spi_transmit(uint8_t data)
      d30:	8c 34       	cpi	r24, 0x4C	; 76
      d32:	a9 f0       	breq	.+42     	; 0xd5e <__stack+0x4ff>
      d34:	28 c0       	rjmp	.+80     	; 0xd86 <__stack+0x527>
+          case TB_GBPARAM_BAUD:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.baud);
      d36:	40 91 a3 00 	lds	r20, 0x00A3
      d3a:	50 e0       	ldi	r21, 0x00	; 0
      d3c:	60 e0       	ldi	r22, 0x00	; 0
      d3e:	70 e0       	ldi	r23, 0x00	; 0
      d40:	84 e6       	ldi	r24, 0x64	; 100
      d42:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      d46:	80 e0       	ldi	r24, 0x00	; 0
+        TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+      } else {
+        switch (TB_bufIn[TB_BUF_TYPE]) {
+          case TB_GBPARAM_BAUD:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.baud);
+            break;
      d48:	5c c0       	rjmp	.+184    	; 0xe02 <__stack+0x5a3>
+          case TB_GBPARAM_ADDRESS:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.address);
      d4a:	40 91 a4 00 	lds	r20, 0x00A4
      d4e:	50 e0       	ldi	r21, 0x00	; 0
      d50:	60 e0       	ldi	r22, 0x00	; 0
      d52:	70 e0       	ldi	r23, 0x00	; 0
      d54:	84 e6       	ldi	r24, 0x64	; 100
      d56:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      d5a:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_GBPARAM_BAUD:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.baud);
+            break;
+          case TB_GBPARAM_ADDRESS:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.address);
+            break;
      d5c:	52 c0       	rjmp	.+164    	; 0xe02 <__stack+0x5a3>
+          case TB_GBPARAM_HOST_ADDR:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.host_address);
      d5e:	40 91 a6 00 	lds	r20, 0x00A6
      d62:	50 e0       	ldi	r21, 0x00	; 0
      d64:	60 e0       	ldi	r22, 0x00	; 0
      d66:	70 e0       	ldi	r23, 0x00	; 0
      d68:	84 e6       	ldi	r24, 0x64	; 100
      d6a:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      d6e:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_GBPARAM_ADDRESS:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.address);
+            break;
+          case TB_GBPARAM_HOST_ADDR:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.host_address);
+            break;
      d70:	48 c0       	rjmp	.+144    	; 0xe02 <__stack+0x5a3>
+          case TB_GBPARAM_EEMAGIC:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.eemagic);
      d72:	40 91 a2 00 	lds	r20, 0x00A2
      d76:	50 e0       	ldi	r21, 0x00	; 0
      d78:	60 e0       	ldi	r22, 0x00	; 0
      d7a:	70 e0       	ldi	r23, 0x00	; 0
      d7c:	84 e6       	ldi	r24, 0x64	; 100
      d7e:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      d82:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_GBPARAM_HOST_ADDR:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.host_address);
+            break;
+          case TB_GBPARAM_EEMAGIC:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.eemagic);
+            break;
      d84:	3e c0       	rjmp	.+124    	; 0xe02 <__stack+0x5a3>
+          default:
+            TB_SendAck(TB_ERR_VALUE, 0); // invalid value
      d86:	40 e0       	ldi	r20, 0x00	; 0
      d88:	50 e0       	ldi	r21, 0x00	; 0
      d8a:	ba 01       	movw	r22, r20
      d8c:	84 e0       	ldi	r24, 0x04	; 4
      d8e:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      d92:	80 e0       	ldi	r24, 0x00	; 0
+          case TB_GBPARAM_EEMAGIC:
+            TB_SendAck(TB_ERR_OK, TB_gbparam.eemagic);
+            break;
+          default:
+            TB_SendAck(TB_ERR_VALUE, 0); // invalid value
+            break;
      d94:	36 c0       	rjmp	.+108    	; 0xe02 <__stack+0x5a3>
+        }
+      }
+      break;
+    case 136: // get module version
+      if (TB_bufIn[TB_BUF_TYPE] == 0) {
      d96:	80 91 ab 00 	lds	r24, 0x00AB
      d9a:	81 11       	cpse	r24, r1
      d9c:	1c c0       	rjmp	.+56     	; 0xdd6 <__stack+0x577>
+        // text mode
+        TB_bufOut[0] = TB_AddrReply;
      d9e:	80 91 b4 00 	lds	r24, 0x00B4
      da2:	80 93 99 00 	sts	0x0099, r24
+        TB_bufOut[1] = '1';
      da6:	81 e3       	ldi	r24, 0x31	; 49
      da8:	80 93 9a 00 	sts	0x009A, r24
+        TB_bufOut[2] = '0';
      dac:	90 e3       	ldi	r25, 0x30	; 48
      dae:	90 93 9b 00 	sts	0x009B, r25
+        TB_bufOut[3] = '2';
      db2:	22 e3       	ldi	r18, 0x32	; 50
      db4:	20 93 9c 00 	sts	0x009C, r18
+        TB_bufOut[4] = '1';
      db8:	80 93 9d 00 	sts	0x009D, r24
+        TB_bufOut[5] = 'V';
      dbc:	36 e5       	ldi	r19, 0x56	; 86
      dbe:	30 93 9e 00 	sts	0x009E, r19
+        TB_bufOut[6] = '1';
      dc2:	80 93 9f 00 	sts	0x009F, r24
+        TB_bufOut[7] = '2';
      dc6:	20 93 a0 00 	sts	0x00A0, r18
+        TB_bufOut[8] = '0';
      dca:	90 93 a1 00 	sts	0x00A1, r25
+        TB_Send();
      dce:	0e 94 49 03 	call	0x692	; 0x692 <TB_Send>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      dd2:	80 e0       	ldi	r24, 0x00	; 0
      dd4:	16 c0       	rjmp	.+44     	; 0xe02 <__stack+0x5a3>
+        TB_bufOut[7] = '2';
+        TB_bufOut[8] = '0';
+        TB_Send();
+       } else {
+        // binary mode
+        TB_SendAck(TB_ERR_OK, (0x10203040));
      dd6:	40 e4       	ldi	r20, 0x40	; 64
      dd8:	50 e3       	ldi	r21, 0x30	; 48
      dda:	60 e2       	ldi	r22, 0x20	; 32
      ddc:	70 e1       	ldi	r23, 0x10	; 16
      dde:	84 e6       	ldi	r24, 0x64	; 100
      de0:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      de4:	80 e0       	ldi	r24, 0x00	; 0
      de6:	0d c0       	rjmp	.+26     	; 0xe02 <__stack+0x5a3>
+        // binary mode
+        TB_SendAck(TB_ERR_OK, (0x10203040));
+      };
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
      de8:	40 e0       	ldi	r20, 0x00	; 0
      dea:	50 e0       	ldi	r21, 0x00	; 0
      dec:	ba 01       	movw	r22, r20
      dee:	82 e0       	ldi	r24, 0x02	; 2
      df0:	0e 94 99 03 	call	0x732	; 0x732 <TB_SendAck>
+      return 0;
      df4:	80 e0       	ldi	r24, 0x00	; 0
      df6:	05 c0       	rjmp	.+10     	; 0xe02 <__stack+0x5a3>
+    case TB_CMD_ROL:
+      TB_SendAck(TB_ERR_OK, 0);
+      return TB_CMD_ROL;
+      break;
+    case TB_CMD_MVP:
+      return TB_CMD_MVP;
      df8:	84 e0       	ldi	r24, 0x04	; 4
      dfa:	03 c0       	rjmp	.+6      	; 0xe02 <__stack+0x5a3>
+					TB_SendAck(TB_ERR_TYPE, 0); // invalid value
+				#endif
+				break;
+			case 1:
+				#ifdef TB_SIO_BANK_1_IMPLEMENTED
+					return TB_CMD_SIO;
      dfc:	8e e0       	ldi	r24, 0x0E	; 14
      dfe:	01 c0       	rjmp	.+2      	; 0xe02 <__stack+0x5a3>
+      break;
+    default:
+      TB_SendAck(TB_ERR_COMMAND, 0); // invalid command
+      return 0;
+  }
+  return 0;
      e00:	80 e0       	ldi	r24, 0x00	; 0
+}
      e02:	0f 90       	pop	r0
      e04:	df 91       	pop	r29
      e06:	cf 91       	pop	r28
@@ -2052,20 +2889,37 @@ uint8_t spi_transmit(uint8_t data)
      e0c:	08 95       	ret
 
 00000e0e <TB_SendSerVzorku>:
+}
+
+/******************************************************/
+// set command to module
+void TB_SendSerVzorku(byte addr, byte command, byte type, byte Type4, byte Type3, byte Type2, byte Type1, byte Type0)
+{
      e0e:	af 92       	push	r10
      e10:	cf 92       	push	r12
      e12:	ef 92       	push	r14
      e14:	0f 93       	push	r16
+	TB_bufOut[0] = addr;
      e16:	80 93 99 00 	sts	0x0099, r24
+	TB_bufOut[1] = command;
      e1a:	60 93 9a 00 	sts	0x009A, r22
+	TB_bufOut[2] = type;
      e1e:	40 93 9b 00 	sts	0x009B, r20
+	TB_bufOut[3] = Type4;
      e22:	20 93 9c 00 	sts	0x009C, r18
+	TB_bufOut[4] = Type3;
      e26:	00 93 9d 00 	sts	0x009D, r16
+	TB_bufOut[5] = Type2;
      e2a:	e0 92 9e 00 	sts	0x009E, r14
+	TB_bufOut[6] = Type1;
      e2e:	c0 92 9f 00 	sts	0x009F, r12
+	TB_bufOut[7] = Type0;
      e32:	a0 92 a0 00 	sts	0x00A0, r10
+	TB_calcSum();
      e36:	0e 94 51 03 	call	0x6a2	; 0x6a2 <TB_calcSum>
+	TB_Send();
      e3a:	0e 94 49 03 	call	0x692	; 0x692 <TB_Send>
+}
      e3e:	0f 91       	pop	r16
      e40:	ef 90       	pop	r14
      e42:	cf 90       	pop	r12

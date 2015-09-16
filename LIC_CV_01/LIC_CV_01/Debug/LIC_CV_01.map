@@ -751,9 +751,9 @@ END GROUP
                                 0x163 (size before relaxing)
  .debug_str     0x00000397       0x1a inc/timer.o
                                 0x15e (size before relaxing)
- .debug_str     0x000003b1      0x267 inc/Tribus.o
-                                0x3aa (size before relaxing)
- .debug_str     0x00000618      0x2db inc/uart_tri_0.o
+ .debug_str     0x000003b1      0x226 inc/Tribus.o
+                                0x3a2 (size before relaxing)
+ .debug_str     0x000005d7      0x31c inc/uart_tri_0.o
                                 0x446 (size before relaxing)
  .debug_str     0x000008f3       0xc8 LIC_CV_01.o
                                 0x3f8 (size before relaxing)
